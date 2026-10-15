@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { createClient } from "@/lib/supabase";
 import { DEFAULT_CATEGORIES, Exam, ExamInput, STATUSES, ApplicationStatus } from "@/lib/types";
 import { Bell, CalendarDays, Check, ChevronDown, ClipboardList, Cloud, FileUp, Filter, LogOut, Plus, Search, Settings2, Trash2, X, Pencil, ExternalLink, Download, Menu, RefreshCw, CircleAlert, BriefcaseBusiness } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 type View = "All" | "Not applied" | "Applied" | "Closing soon" | "Deadline passed" | "Upcoming exams" | "Dates unknown";
 type ExamDocument = { id: string; user_id: string; exam_id: string; document_type: string; file_name: string; storage_path: string; content_type: string | null; file_size: number | null; created_at: string };
@@ -133,7 +134,7 @@ export default function ExamTrack() {
   const openNew = () => { setEditing(null); setForm({...EMPTY}); setShowForm(true); setMessage(""); };
   const openEdit = (e: Exam) => {
     setEditing(e);
-    const {id,user_id,created_at,updated_at,...values} = e;
+    const values = Object.fromEntries(Object.entries(e).filter(([key]) => !["id", "user_id", "created_at", "updated_at"].includes(key))) as Partial<ExamInput>;
     setForm({...EMPTY,...values, reminder_days: values.reminder_days ?? [7,3,1]});
     setShowForm(true); setMessage("");
   };
@@ -253,7 +254,7 @@ export default function ExamTrack() {
       for (let p=1; p<=Math.min(pdf.numPages,30); p++) {
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
-        text += content.items.map((item:any)=>"str" in item ? item.str : "").join(" ") + "\n";
+        text += content.items.map(item=>"str" in item ? item.str : "").join(" ") + "\n";
       }
       const findDate = (patterns: RegExp[]) => {
         for(const pattern of patterns) { const m=text.match(pattern); if(m) { const raw=m[1]; const d=new Date(raw); if(!Number.isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; const parts=raw.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/); if(parts) return `${parts[3]}-${parts[2].padStart(2,"0")}-${parts[1].padStart(2,"0")}`; } }
@@ -267,7 +268,7 @@ export default function ExamTrack() {
       setForm({...EMPTY, title:name, organization:"", recruitment_no:org, application_start:start, application_deadline:deadline, exam_date:examDate, notes:`Imported from ${file.name}. Review every extracted field against the official notification.\n\nExtracted text (first 12,000 characters):\n${text.slice(0,12000)}`});
       setEditing(null); setShowForm(true);
       setMessage(`Read ${pdf.numPages} page(s). Basic date extraction is best-effort; check the values and complete the form before saving.`);
-    } catch(e) {
+    } catch {
       setMessage("Could not read this PDF. It may be scanned/image-only; use OCR or enter details manually.");
     } finally { setPdfBusy(false); if(fileRef.current) fileRef.current.value=""; }
   };
@@ -276,7 +277,7 @@ export default function ExamTrack() {
   if (!supabase) return <main className="center-screen"><div className="auth-card"><div className="brand-mark"><CalendarDays/></div><h1>ExamTrack</h1><p>Supabase setup is needed before sign-in can work.</p><p className="muted">Copy <code>.env.example</code> to <code>.env.local</code>, add your Supabase Project URL and anon/publishable key, then restart the dev server.</p></div></main>;
   if (!user) return <main className="auth-screen"><form className="auth-card" onSubmit={authSubmit}><div className="brand-mark"><CalendarDays size={26}/></div><div><h1>ExamTrack</h1><p className="muted">Every opportunity. One organized place.</p></div><div className="auth-tabs"><button type="button" className={authMode==="signin"?"active":""} onClick={()=>setAuthMode("signin")}>Sign in</button><button type="button" className={authMode==="signup"?"active":""} onClick={()=>setAuthMode("signup")}>Create account</button></div><label>Email address<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label><label>Password<input type="password" required minLength={6} autoComplete={authMode==="signin"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 6 characters"/></label>{authMessage&&<p className="inline-message">{authMessage}</p>}<button className="primary full" disabled={busy}>{busy?"Please wait…":authMode==="signin"?"Sign in":"Create account"}</button><p className="tiny muted">Your records are private to your account using Supabase Row Level Security.</p></form></main>;
 
-  const navItems: {label:View;icon:any}[] = [
+  const navItems: {label:View;icon:LucideIcon}[] = [
     {label:"All",icon:ClipboardList},{label:"Not applied",icon:Plus},{label:"Applied",icon:Check},
     {label:"Closing soon",icon:Bell},{label:"Deadline passed",icon:CircleAlert},{label:"Upcoming exams",icon:CalendarDays},{label:"Dates unknown",icon:Settings2}
   ];
@@ -302,7 +303,7 @@ export default function ExamTrack() {
         <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search organization, post, category…"/></div><div className="filter-control"><Filter size={16}/><select value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option>All categories</option>{categories.map(c=><option key={c}>{c}</option>)}</select></div><div className="filter-control status-select"><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All statuses</option>{STATUSES.map(s=><option key={s}>{s}</option>)}</select><ChevronDown size={14}/></div><button className="secondary export-btn" onClick={exportCsv}><Download size={16}/><span>Export</span></button><button className="secondary import-btn" onClick={()=>fileRef.current?.click()} disabled={pdfBusy}><FileUp size={16}/><span>{pdfBusy?"Reading PDF…":"Import PDF"}</span></button><input ref={fileRef} type="file" accept="application/pdf,.pdf" hidden onChange={e=>void importPdf(e.target.files?.[0])}/></div>
         <div className="list-meta"><span><strong>{filtered.length}</strong> {filtered.length===1?"opportunity":"opportunities"}</span><button className="text-btn" onClick={()=>{setQuery("");setCategoryFilter("All categories");setStatusFilter("All statuses");setView("All")}}>Clear filters</button></div>
         {filtered.length===0?<div className="empty-state"><div className="empty-icon"><BriefcaseBusiness size={27}/></div><h3>{exams.length===0?"Start your opportunity list":"No matching opportunities"}</h3><p>{exams.length===0?"Add your first exam or import a recruitment PDF to get started.":"Try changing the filters or search for another post."}</p>{exams.length===0&&<button className="primary" onClick={openNew}><Plus size={17}/> Add your first opportunity</button>}</div>:
-          <div className="exam-list">{filtered.map(e=>{const d=daysUntil(e.application_deadline); const ed=daysUntil(e.exam_date); const state=deadlineState(e); return <article className="exam-card" key={e.id}>
+          <div className="exam-list">{filtered.map(e=>{const d=daysUntil(e.application_deadline); const state=deadlineState(e); return <article className="exam-card" key={e.id}>
             <div className="exam-date-block">{e.exam_date?<><span>{new Date(`${e.exam_date}T12:00:00`).toLocaleDateString("en-IN",{month:"short"}).toUpperCase()}</span><strong>{new Date(`${e.exam_date}T12:00:00`).getDate()}</strong><small>{new Date(`${e.exam_date}T12:00:00`).getFullYear()}</small></>:<><span>EXAM</span><strong>—</strong><small>TBA</small></>}</div>
             <div className="exam-main"><div className="exam-title-line"><div className="exam-title-wrap"><h3>{e.title}</h3><p>{e.organization}{e.recruitment_no?` · ${e.recruitment_no}`:""}</p></div><div className="card-actions"><button className="icon-btn" onClick={()=>openEdit(e)} title="Edit opportunity" aria-label="Edit"><Pencil size={16}/></button><button className="icon-btn danger-icon" onClick={()=>void deleteExam(e)} title="Delete opportunity" aria-label="Delete"><Trash2 size={16}/></button></div></div>
               <div className="tag-row"><span className="category-tag">{e.category}</span><span className={`status-tag ${e.application_status==="Applied"||e.application_status==="Result declared"||e.application_status==="Exam completed"?"status-good":e.application_status==="Not applied"?"status-warn":"status-neutral"}`}>{e.application_status}</span>{state==="Deadline passed"?<span className="status-tag status-bad">Deadline passed</span>:state==="Closes today"?<span className="status-tag status-bad">Closes today</span>:d!==null&&d>0&&d<=7&&!isDone(e)?<span className="status-tag status-warn">{state}</span>:null}</div>
