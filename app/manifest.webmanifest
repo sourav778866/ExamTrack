@@ -1,0 +1,10 @@
+{
+  "name": "ExamTrack",
+  "short_name": "ExamTrack",
+  "description": "Personal exam and job application tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fc",
+  "theme_color": "#f7f8fc",
+  "icons": []
+}
